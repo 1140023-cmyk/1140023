@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>森林裡的99夜 (3D多人版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        #blocker, #crafting-menu { /* Combined styles for blocker and crafting menu */
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            display: flex; /* Changed from none to flex */
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        #crafting-menu { /* Initially hide crafting menu */
+             display: none;
+        }
+
+        #instructions, .crafting-modal { /* Shared styles for modals */
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+            color: white;
+            padding: 20px;
+            cursor: default;
+            background: rgba(30, 41, 59, 0.9); /* slate-800 with opacity */
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+         .crafting-modal h2 {
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+        }
+        #recipe-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            max-height: 60vh;
+            overflow-y: auto;
+            scrollbar-width: thin; /* Firefox */
+            scrollbar-color: rgba(255,255,255,0.2) transparent; /* Firefox */
+        }
+         /* Webkit scrollbar styles */
+        #recipe-list::-webkit-scrollbar { width: 8px; }
+        #recipe-list::-webkit-scrollbar-track { background: transparent; }
+        #recipe-list::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.2); border-radius: 4px; }
+
+        .recipe-item {
+            background: rgba(255,255,255,0.05);
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: left;
+        }
+        .recipe-item h3 { font-size: 1.2rem; font-weight: bold; }
+        .recipe-item .cost { font-size: 0.9rem; color: #cbd5e1; /* slate-300 */ margin-top: 0.5rem; }
+        .craft-button {
+            margin-top: 1rem;
+            width: 100%;
+            padding: 0.5rem;
+            background-color: #10b981; /* emerald-500 */
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .craft-button:hover:not(:disabled) { background-color: #059669; /* emerald-600 */ }
+        .craft-button:disabled { background-color: #4b5563; /* slate-600 */ cursor: not-allowed; }
+        #close-crafting { position: absolute; top: 15px; right: 20px; font-size: 2rem; cursor: pointer; color: #9ca3af; /* gray-400 */}
+        #close-crafting:hover { color: white; }
+
+        #instructions h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            color: #34d399; /* emerald-400 */
+        }
+        #instructions p {
+             font-size: 1.1rem;
+             line-height: 1.6;
+        }
+        .player-currency {
+            font-size: 1.2rem;
+            color: #f59e0b; /* amber-500 */
+            margin-bottom: 1rem;
+        }
+        .class-selection {
+            margin-top: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        .class-card {
+            background: rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 10px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .class-card.locked {
+            background: rgba(10,10,10,0.5);
+            color: #6b7280; /* gray-500 */
+        }
+        .class-card.locked h3 { color: #9ca3af; /* gray-400 */ }
+        .class-card:not(.locked):hover { background: rgba(255,255,255,0.2); }
+        .class-card.selected {
+            border-color: #34d399; /* emerald-400 */
+            background: rgba(52, 211, 153, 0.2);
+        }
+        .class-card h3 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #6ee7b7; /* emerald-300 */
+        }
+        .class-card p {
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            color: #d1d5db; /* gray-300 */
+        }
+        .class-cost {
+            font-weight: bold;
+            margin-top: 0.75rem;
+            display: block;
+        }
+        .buy-button {
+            background-color: #f59e0b;
+            color: black;
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            display: inline-block;
+        }
+        .buy-button.disabled {
+            background-color: #4b5563;
+            cursor: not-allowed;
+        }
+        #start-button {
+            margin-top: 2rem;
+            padding: 0.75rem 2rem;
+            background-color: #10b981; /* emerald-500 */
+            color: white;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #start-button:hover { background-color: #059669; /* emerald-600 */ }
+
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background-color: white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+        .hud { position: absolute; top: 20px; left: 20px; color: white; background-color: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; min-width: 250px; pointer-events: none; }
+        .hud .stat-bar { width: 100%; background-color: rgba(255,255,255,0.2); border-radius: 5px; height: 20px; margin-top: 5px; overflow: hidden; }
+        .hud .stat-bar > div { height: 100%; transition: width 0.3s ease; text-align: center; font-size: 12px; line-height: 20px; }
+        .resource-text { font-size: 0.9rem; } /* Smaller font for resource counts */
+        #interaction-prompt { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); color: white; background-color: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 5px; display: none; pointer-events: none; }
+        #player-id-display { position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.5); color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; }
+        #loot-notification { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: #f59e0b; padding: 15px 30px; border-radius: 10px; font-size: 1.5rem; font-weight: bold; opacity: 0; transition: opacity 0.5s ease; pointer-events: none; }
+         #loot-notification.warning { color: #ef4444; } /* red-500 */
+         #loot-notification.info { color: #3b82f6; } /* blue-500 */
+    </style>
+</head>
+<body>
+    <div id="blocker">
+         <div id="instructions">
+            <h1 class="text-emerald-400">選擇你的職業</h1>
+            <div class="player-currency">您的鑽石: <span id="player-diamonds">0</span> 💎</div>
+            <div class="class-selection">
+                <div class="class-card selected" data-class="初心者" data-cost="0">
+                    <h3>初心者</h3><p>沒有特殊能力，但充滿無限可能。</p><span class="class-cost text-green-400">免費</span>
+                </div>
+                <div class="class-card" data-class="樵夫" data-cost="5">
+                    <h3>樵夫</h3><p>伐木效率更高。</p><span class="class-cost text-amber-400">價格: 5 💎</span>
+                </div>
+                <div class="class-card" data-class="礦工" data-cost="5">
+                    <h3>礦工</h3><p>開採石頭效率更高。</p><span class="class-cost text-amber-400">價格: 5 💎</span>
+                </div>
+                <div class="class-card" data-class="採集者" data-cost="7">
+                    <h3>採集者</h3><p>起始食物更多，飢餓減緩。</p><span class="class-cost text-amber-400">價格: 7 💎</span>
+                </div>
+            </div>
+            <div id="start-button">進入森林</div>
+            <p id="loading-text" class="mt-4 text-amber-300" style="display: none;">正在連接伺服器...</p>
+        </div>
+    </div>
+
+    <div id="crafting-menu" style="display: none;">
+        <div class="crafting-modal">
+            <span id="close-crafting">&times;</span>
+            <h2 id="crafting-title">製造</h2>
+            <div id="recipe-list"></div>
+        </div>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="loot-notification"></div>
+    
+    <div class="hud">
+        <h2 id="day-counter" class="text-2xl font-bold text-amber-300">第 1 天</h2>
+        <div><strong>健康</strong><div class="stat-bar"><div id="health-bar" class="bg-red-500" style="width: 100%;">100%</div></div></div>
+        <div class="mt-2"><strong>飢餓</strong><div class="stat-bar"><div id="hunger-bar" class="bg-orange-500" style="width: 100%;">100%</div></div></div>
+        <div class="mt-4">
+            <h3 class="font-bold">資源:</h3>
+            <p class="resource-text">木材: <span id="wood-count">0</span> / <span id="max-wood">50</span></p>
+            <p class="resource-text">石塊: <span id="stone-count">0</span> / <span id="max-stone">30</span></p>
+            <p class="resource-text">食物: <span id="food-count">2</span> / <span id="max-food">10</span></p>
+            <p class="text-amber-400 resource-text">💎 鑽石: <span id="diamond-count">0</span> / <span id="max-diamond">5</span></p>
+            <p class="text-purple-400 resource-text">🔮 邪教寶石: <span id="cultist-gem-count">0</span> / <span id="max-cultist-gem">5</span></p>
+            <p class="text-cyan-400 resource-text">🛸 外星合金: <span id="alien-alloy-count">0</span> / <span id="max-alien-alloy">5</span></p>
+            <p class="text-orange-400 resource-text">☄️ 隕石碎片: <span id="meteorite-fragment-count">0</span> / <span id="max-meteorite-fragment">5</span></p>
+        </div>
+         <div class="mt-4">
+            <h3 class="font-bold">裝備:</h3>
+            <p>工具: <span id="equipped-tool" class="text-yellow-300">空手</span></p>
+             <p>背包: <span id="equipped-bag" class="text-lime-300">無</span></p>
+        </div>
+    </div>
+    
+    <div id="interaction-prompt"></div>
+    <div id="player-id-display">您的ID: <span id="user-id"></span></div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/", "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js", "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js", "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js" } }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+        import { initializeApp } from 'firebase/app';
+        import { getAuth, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
+        import { getFirestore, collection, doc, onSnapshot, setDoc, getDoc, updateDoc, arrayUnion, addDoc, deleteDoc } from 'firebase/firestore'; // Added deleteDoc
+
+        let camera, scene, renderer, controls;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, canJump = false;
+        let velocity = new THREE.Vector3();
+        let direction = new THREE.Vector3();
+        let prevTime;
+        
+        const interactableObjects = [];
+        let worldObjects = new Map();
+        const animatedItems = [];
+        const npcs = []; // Changed from animals to npcs
+        const specialEvents = [];
+        const raycaster = new THREE.Raycaster();
+        let placementGhost = null;
+
+        let db, auth, userId;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const remotePlayers = new Map();
+        let playersCollection, destroyedObjectsCollection, playerDataCollection, placedObjectsCollection;
+        let lastPositionUpdateTime = 0;
+        let playerClass = '初心者';
+        let playerData = { diamonds: 0, unlockedClasses: ['初心者'] };
+
+        const BASE_MAX_RESOURCES = { wood: 50, stone: 30, food: 10, diamonds: 5, cultist_gems: 5, alien_alloys: 5, meteorite_fragments: 5 };
+
+        let gameState = {
+            day: 1, health: 100, hunger: 100,
+            resources: { wood: 0, stone: 0, food: 2, diamonds: 0, cultist_gems: 0, alien_alloys: 0, meteorite_fragments: 0 },
+            maxResources: { ...BASE_MAX_RESOURCES }, // Initialize with base limits
+            timeOfDay: 0.25, dayDuration: 240,
+            equippedTool: 'Fists',
+            equippedBag: 'None', // Track current bag
+            inPlacementMode: null,
+            meteorStrikeToday: false
+        };
+
+        const TOOLS = {
+            'Fists': { name: '空手', damage: { default: 1 } },
+            'StoneAxe': { name: '石斧', damage: { default: 1.5, wood: 2 } },
+            'StonePickaxe': { name: '石鎬', damage: { default: 1, stone: 2.5, workbench: 2, ufo_wreckage: 2, meteorite_core: 2 } },
+            'ExcellentAxe': { name: '優秀斧子', damage: { default: 2, wood: 4 } },
+            'ToughAxe': { name: '堅韌斧子', damage: { default: 2, stone: 4, workbench: 3, ufo_wreckage: 3, meteorite_core: 4 } },
+            'WolfToothClub': { name: '狼牙棒', damage: { default: 3, cultist: 5, alien: 3 } },
+            'Chainsaw': { name: '鏈鋸', damage: { default: 4, wood: 10, workbench: 5 } },
+            'LaserPistol': { name: '雷射手槍', damage: { default: 8, alien: 12 } }
+        };
+
+        const BAGS = {
+            'None': { name: '無', capacityMultiplier: 1.0 },
+            'OldBag': { name: '舊袋子', capacityMultiplier: 1.5 },
+            'GoodBag': { name: '好袋子', capacityMultiplier: 2.0 },
+            'GiantBag': { name: '巨大袋子', capacityMultiplier: 3.0 }
+        };
+
+        const RECIPES = {
+            'workbench': { name: '工作台', cost: { wood: 10 }, result: { type: 'placement', item: 'workbench' }, requiresWorkbench: false },
+            'stone_axe': { name: '石斧', cost: { wood: 5, stone: 3 }, result: { type: 'tool', item: 'StoneAxe' }, requiresWorkbench: true },
+            'stone_pickaxe': { name: '石鎬', cost: { wood: 5, stone: 5 }, result: { type: 'tool', item: 'StonePickaxe' }, requiresWorkbench: true },
+        };
+        
+        const blocker = document.getElementById('blocker');
+        const instructions = document.getElementById('instructions');
+        const loadingText = document.getElementById('loading-text');
+        const startButton = document.getElementById('start-button');
+        const classCards = document.querySelectorAll('.class-card');
+        const craftingMenu = document.getElementById('crafting-menu');
+        const closeCraftingButton = document.getElementById('close-crafting');
+        
+        let seed = 1;
+        function seededRandom() { const x = Math.sin(seed++) * 10000; return x - Math.floor(x); }
+
+        async function main() { await initFirebase(); setupClassSelection(); }
+        
+        function setupClassSelection() {
+             document.getElementById('player-diamonds').textContent = playerData.diamonds;
+            loadingText.style.display = 'none'; // Hide loading text initially
+
+            classCards.forEach(card => {
+                const className = card.dataset.class;
+                const cost = parseInt(card.dataset.cost);
+                const isUnlocked = playerData.unlockedClasses.includes(className);
+
+                if (isUnlocked) {
+                    card.addEventListener('click', () => {
+                        if(card.classList.contains('locked')) return;
+                        classCards.forEach(c => c.classList.remove('selected'));
+                        card.classList.add('selected');
+                        playerClass = className;
+                    });
+                } else {
+                    card.classList.add('locked');
+                    const buyButton = document.createElement('div');
+                    buyButton.textContent = '購買';
+                    buyButton.classList.add('buy-button');
+                    if (playerData.diamonds < cost) {
+                        buyButton.classList.add('disabled');
+                    }
+                    buyButton.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        if (playerData.diamonds >= cost) {
+                           await buyClass(className, cost);
+                           card.classList.remove('locked');
+                           card.querySelector('.buy-button').remove();
+                           card.querySelector('.class-cost').textContent = '已解鎖';
+                           card.dispatchEvent(new Event('click'));
+                        }
+                    });
+                    card.appendChild(buyButton);
+                }
+            });
+
+            startButton.addEventListener('click', async () => {
+                document.querySelector('.class-selection').style.display = 'none';
+                document.querySelector('h1').textContent = "正在載入...";
+                document.querySelector('.player-currency').style.display = 'none';
+                startButton.style.display = 'none';
+                loadingText.style.display = 'block'; // Show loading text
+                loadingText.textContent = "正在生成森林...";
+                await initGame();
+            });
+        }
+        async function buyClass(className, cost) {
+            if (playerData.diamonds < cost) return; // Prevent purchase if not enough diamonds
+
+            playerData.diamonds -= cost;
+            playerData.unlockedClasses.push(className);
+            
+            const playerDocRef = doc(playerDataCollection, userId);
+            try {
+                await updateDoc(playerDocRef, {
+                    diamonds: playerData.diamonds,
+                    unlockedClasses: arrayUnion(className)
+                });
+
+                document.getElementById('player-diamonds').textContent = playerData.diamonds;
+                // Update button states after successful purchase
+                classCards.forEach(card => {
+                    if(card.classList.contains('locked')){
+                        const btn = card.querySelector('.buy-button');
+                        if(btn){
+                            if(playerData.diamonds < parseInt(card.dataset.cost)){
+                                btn.classList.add('disabled');
+                            } else {
+                                btn.classList.remove('disabled');
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Error buying class:", error);
+                // Optionally revert local changes if Firestore update fails
+                playerData.diamonds += cost;
+                playerData.unlockedClasses.pop();
+            }
+        }
+        async function initGame() {
+            applyClassBonuses();
+            initScene();
+            createWorld();
+            setupGameEventListeners();
+            equipBag('None'); // Ensure base capacity is set initially
+            updateUI(); // Initial UI update
+            prevTime = performance.now();
+            animate();
+            controls.lock();
+        }
+        function applyClassBonuses() {
+             if (playerClass === '採集者') gameState.resources.food = 5;
+            gameState.resources.diamonds = playerData.diamonds; // Carry over diamonds
+        }
+        async function initFirebase() {
+             const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            if (Object.keys(firebaseConfig).length === 0) {
+                 console.warn("Firebase config not found. Using default/offline mode.");
+                 // Handle offline mode if necessary, maybe disable multiplayer features
+                 loadingText.textContent = "Firebase 設定未找到，多人模式可能無法使用。";
+                 return; // Prevent further Firebase initialization
+            }
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                userId = auth.currentUser.uid;
+                document.getElementById('user-id').textContent = userId || "未登入"; // Display ID or placeholder
+
+                playersCollection = collection(db, `artifacts/${appId}/public/data/players`);
+                destroyedObjectsCollection = collection(db, `artifacts/${appId}/public/data/destroyed_objects`);
+                placedObjectsCollection = collection(db, `artifacts/${appId}/public/data/placed_objects`);
+                playerDataCollection = collection(db, `artifacts/${appId}/public/data/player_data`);
+                
+                const playerDocRef = doc(playerDataCollection, userId);
+                const playerDocSnap = await getDoc(playerDocRef);
+
+                if(playerDocSnap.exists()) {
+                    playerData = playerDocSnap.data();
+                    // Ensure unlockedClasses is always an array
+                    if (!Array.isArray(playerData.unlockedClasses)) {
+                        playerData.unlockedClasses = ['初心者'];
+                    }
+                } else {
+                     // Ensure default playerData has unlockedClasses as an array
+                     playerData.unlockedClasses = ['初心者'];
+                    await setDoc(playerDocRef, playerData);
+                }
+
+                setupFirestoreListeners(); // Setup listeners after ensuring playerData is initialized
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+                loadingText.textContent = "無法連接到 Firebase。請檢查您的網路連線或稍後重試。";
+            }
+        }
+        function initScene() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb);
+            scene.fog = new THREE.Fog(0x87ceeb, 0, 300);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.y = 10;
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            dirLight.position.set(50, 200, 100);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.top = 180;
+            dirLight.shadow.camera.bottom = -100;
+            dirLight.shadow.camera.left = -120;
+            dirLight.shadow.camera.right = 120;
+            scene.add(dirLight);
+            scene.userData.dirLight = dirLight;
+            scene.userData.ambientLight = ambientLight;
+            controls = new PointerLockControls(camera, document.body);
+            scene.add(controls.getObject());
+        }
+        
+        function setupGameEventListeners() {
+             controls.addEventListener('lock', () => { blocker.style.display = 'none'; craftingMenu.style.display = 'none'; });
+             controls.addEventListener('unlock', () => { if(!gameState.inPlacementMode) blocker.style.display = 'flex'; });
+             
+             const onKeyDown = (e) => {
+                if(e.code === 'KeyC' && controls.isLocked) toggleCraftingMenu(false);
+                if(e.code === 'KeyQ' && gameState.inPlacementMode) cancelPlacement();
+                switch (e.code) {
+                    case 'KeyW': moveForward = true; break; case 'KeyA': moveLeft = true; break;
+                    case 'KeyS': moveBackward = true; break; case 'KeyD': moveRight = true; break;
+                    case 'Space': if (canJump) velocity.y += 350; canJump = false; break;
+                }
+            };
+            const onKeyUp = (e) => {
+                 switch (e.code) {
+                    case 'KeyW': moveForward = false; break; case 'KeyA': moveLeft = false; break;
+                    case 'KeyS': moveBackward = false; break; case 'KeyD': moveRight = false; break;
+                }
+            };
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            document.addEventListener('click', onMouseClick);
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('beforeunload', async () => { if (userId) await deleteDoc(doc(playersCollection, userId)); });
+            closeCraftingButton.addEventListener('click', () => toggleCraftingMenu(false));
+        }
+        
+        function setupFirestoreListeners() {
+            onSnapshot(playersCollection, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const pData = change.doc.data();
+                    const pId = change.doc.id;
+                    if (pId === userId) return;
+                    if (change.type === "added" || change.type === "modified") {
+                        if (!remotePlayers.has(pId)) {
+                            const playerGeo = new THREE.CapsuleGeometry(1, 1.5, 4, 8);
+                            const playerMat = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+                            const playerMesh = new THREE.Mesh(playerGeo, playerMat);
+                            playerMesh.castShadow = true;
+                            scene.add(playerMesh);
+                            remotePlayers.set(pId, { mesh: playerMesh, data: pData });
+                        }
+                         remotePlayers.get(pId).data = pData; // Always update data
+                    } else if (change.type === "removed") {
+                        if (remotePlayers.has(pId)) {
+                            scene.remove(remotePlayers.get(pId).mesh);
+                            remotePlayers.delete(pId);
+                        }
+                    }
+                });
+            });
+            
+            onSnapshot(destroyedObjectsCollection, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "added") {
+                        const objectId = change.doc.id;
+                        if (worldObjects.has(objectId)) {
+                            const obj = worldObjects.get(objectId);
+                            scene.remove(obj.main);
+                            if(obj.secondary) scene.remove(obj.secondary);
+                            
+                            const i = interactableObjects.findIndex(o => o.userData.id === objectId);
+                            if(i > -1) interactableObjects.splice(i, 1);
+                            
+                            const j = animatedItems.findIndex(item => item.userData.id === objectId);
+                            if (j > -1) animatedItems.splice(j, 1);
+                            
+                            const k = npcs.findIndex(npc => npc.mesh.userData.id === objectId);
+                            if (k > -1) npcs.splice(k, 1);
+
+                            worldObjects.delete(objectId);
+                        }
+                    }
+                     // Optional: Handle removals if objects can be restored later
+                });
+            });
+            
+            onSnapshot(placedObjectsCollection, (snapshot) => {
+                 snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    const id = change.doc.id;
+                     if (change.type === "added") {
+                        if (!worldObjects.has(id)) { // Check if it doesn't exist locally yet
+                             if(data.type === 'workbench') {
+                                createWorkbench(new THREE.Vector3(data.position.x, data.position.y, data.position.z), id);
+                            }
+                             // Add other placeable types here
+                        }
+                    } else if (change.type === "removed") {
+                         // Optional: Handle removal of placed objects if needed
+                         if (worldObjects.has(id)) {
+                             const obj = worldObjects.get(id);
+                             scene.remove(obj.main); if(obj.secondary) scene.remove(obj.secondary);
+                             const i = interactableObjects.findIndex(o => o.userData.id === id); if(i > -1) interactableObjects.splice(i, 1);
+                             worldObjects.delete(id);
+                         }
+                    }
+                });
+            });
+        }
+        
+        function createWorld() {
+            seed = appId.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a }, 0);
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshLambertMaterial({ color: 0x228B22 }));
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            let treePositions = [];
+            for (let i = 0; i < 200; i++) {
+                const x = seededRandom() * 800 - 400; const z = seededRandom() * 800 - 400;
+                treePositions.push({x, z, trunkHeight: seededRandom() * 10 + 10});
+                createTree(x, z, treePositions[i].trunkHeight);
+            }
+
+            for (let i = 0; i < 50; i++) createRock(seededRandom() * 800 - 400, seededRandom() * 800 - 400);
+            for (let i = 0; i < 70; i++) createBush(seededRandom() * 800 - 400, seededRandom() * 800 - 400);
+            for (let i = 0; i < 15; i++) createDiamondNode(seededRandom() * 800 - 400, seededRandom() * 800 - 400);
+            for (let i = 0; i < 2; i++) createUfoCrashSite(seededRandom() * 700 - 350, seededRandom() * 700 - 350, i);
+            
+            for (let i = 0; i < 8; i++) createTreasureChest(seededRandom() * 800 - 400, seededRandom() * 800 - 400, 'wooden');
+            for (let i = 0; i < 6; i++) createTreasureChest(seededRandom() * 800 - 400, seededRandom() * 800 - 400, 'iron');
+            for (let i = 0; i < 4; i++) createTreasureChest(seededRandom() * 800 - 400, seededRandom() * 800 - 400, 'red');
+            for (let i = 0; i < 2; i++) createTreasureChest(seededRandom() * 800 - 400, seededRandom() * 800 - 400, 'gold');
+            for (let i = 0; i < 2; i++) createTreasureChest(seededRandom() * 800 - 400, seededRandom() * 800 - 400, 'diamond');
+            createTreasureChest(seededRandom() * 800 - 400, seededRandom() * 800 - 400, 'obsidian');
+
+            const baseX = seededRandom() * 400 + 200;
+            const baseZ = seededRandom() * 400 + 200;
+            createCultistBase(baseX, baseZ);
+            spawnInitialCultists(baseX, baseZ);
+            
+            for(let i=0; i<8; i++) createNpc('rabbit', i);
+            for(let i=0; i<5; i++) createNpc('wolf', i);
+            createNpc('alphawolf', 0);
+            createNpc('bear', 0);
+            createNpc('deer', 0);
+            createNpc('deer', 1);
+            createNpc('owl', 0, treePositions);
+        }
+        
+        function createObject(id, mainMesh, secondaryMesh = null) {
+            mainMesh.userData.id = id;
+            scene.add(mainMesh);
+            if (secondaryMesh) scene.add(secondaryMesh);
+            worldObjects.set(id, { main: mainMesh, secondary: secondaryMesh });
+            if (mainMesh.userData.type && mainMesh.userData.type !== 'food' && mainMesh.userData.type !== 'cultist_gem') { // Exclude collectables from raycast target list
+                 interactableObjects.push(mainMesh);
+            } else if (mainMesh.userData.type) { // Still track collectables in worldObjects
+                 // Optional: add collectables to a separate array if needed for proximity checks
+            }
+        }
+        
+        function createTree(x, z, trunkH) {
+            const id = `tree_${Math.round(x)}_${Math.round(z)}`;
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1, trunkH, 8), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+            trunk.position.set(x, trunkH / 2, z);
+            trunk.castShadow = true; trunk.receiveShadow = true;
+            trunk.userData = { type: 'wood', health: 5 };
+            const leavesH = seededRandom() * 5 + 5;
+            const leaves = new THREE.Mesh(new THREE.ConeGeometry(5, leavesH, 8), new THREE.MeshLambertMaterial({ color: 0x006400 }));
+            leaves.position.set(x, trunkH + leavesH / 2, z);
+            leaves.castShadow = true; leaves.receiveShadow = true;
+            createObject(id, trunk, leaves);
+        }
+        
+        function createRock(x, z) {
+            const id = `rock_${Math.round(x)}_${Math.round(z)}`;
+            const size = seededRandom() * 2 + 1;
+            const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 0), new THREE.MeshLambertMaterial({ color: 0x808080 }));
+            rock.position.set(x, size/2, z);
+            rock.castShadow = true;
+            rock.userData = { type: 'stone', health: 8 };
+            createObject(id, rock);
+        }
+        
+        function createBush(x, z) {
+            const id = `bush_${Math.round(x)}_${Math.round(z)}`;
+            const size = seededRandom() * 1.5 + 0.5;
+            const bush = new THREE.Mesh(new THREE.SphereGeometry(size, 8, 6), new THREE.MeshLambertMaterial({ color: 0x556B2F }));
+            bush.position.set(x, size/2, z);
+            bush.castShadow = true;
+            bush.userData = { type: 'food_bush', health: 1 }; // Change type to distinguish from dropped food
+            createObject(id, bush);
+        }
+
+        function createDiamondNode(x, z) {
+            const id = `diamond_node_${Math.round(x)}_${Math.round(z)}`;
+            const diamond = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 1), new THREE.MeshPhongMaterial({ color: 0x00ffff, emissive: 0x00eeee, shininess: 100, specular: 0xffffff }));
+            diamond.position.set(x, 1.5, z);
+            diamond.castShadow = true;
+            diamond.userData = { type: 'diamond', health: 1, id };
+            createObject(id, diamond);
+            animatedItems.push(diamond);
+        }
+
+        function createTreasureChest(x, z, chestType = 'wooden') {
+            const id = `treasure_${chestType}_${Math.round(x)}_${Math.round(z)}`;
+            const group = new THREE.Group();
+            const chestColors = { wooden: { box: 0xCD853F, lock: 0x696969 }, iron: { box: 0x8B4513, lock: 0x808080 }, red: { box: 0xDC143C, lock: 0xFFD700 }, gold: { box: 0xFFD700, lock: 0xC0C0C0 }, diamond: { box: 0x00BFFF, lock: 0xE0FFFF }, obsidian: { box: 0x1A1A2E, lock: 0x9400D3 }, };
+            const colors = chestColors[chestType];
+            const box = new THREE.Mesh(new THREE.BoxGeometry(2, 1.5, 3), new THREE.MeshLambertMaterial({ color: colors.box }));
+            const lock = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.2), new THREE.MeshLambertMaterial({ color: colors.lock }));
+            lock.position.set(0, 0, 1.6);
+            group.add(box, lock);
+            group.position.set(x, 0.75, z);
+            group.rotation.y = seededRandom() * Math.PI * 2;
+            group.castShadow = true;
+            group.userData = { type: 'treasure', health: 1, id, chestType };
+            interactableObjects.push(group); // Add group to interactables
+            worldObjects.set(id, { main: group, secondary: null });
+            scene.add(group);
+        }
+
+        function createCultistBase(x, z) {
+            const mat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const altar = new THREE.Mesh(new THREE.BoxGeometry(10, 2, 10), mat);
+            altar.position.set(x, 1, z); scene.add(altar);
+            [{ px: x-15, pz: z-15 },{ px: x+15, pz: z-15 },{ px: x-15, pz: z+15 },{ px: x+15, pz: z+15 }].forEach(p => {
+                const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 15, 8), mat);
+                pillar.position.set(p.px, 7.5, p.pz); scene.add(pillar);
+            });
+            const cultistLight = new THREE.PointLight(0xff00ff, 0, 50, 2);
+            cultistLight.position.set(x, 5, z);
+            scene.add(cultistLight); scene.userData.cultistLight = cultistLight;
+        }
+
+        function spawnInitialCultists(baseX, baseZ) {
+            const spawnPoints = [ { x: baseX + 10, z: baseZ }, { x: baseX - 10, z: baseZ }, { x: baseX, z: baseZ + 10 }, { x: baseX, z: baseZ - 10 }, ];
+            spawnPoints.forEach((pos, i) => createNpc('cultist', i, [], pos)); // Pass position
+        }
+
+        function createUfoCrashSite(x, z, index) {
+            const id = `ufo_wreckage_${index}`;
+            const saucer = new THREE.Mesh(
+                new THREE.CylinderGeometry(10, 15, 4, 20),
+                new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.8, roughness: 0.2 })
+            );
+            saucer.position.set(x, 1, z);
+            saucer.rotation.set(seededRandom() * 0.5, 0, seededRandom() * 0.5);
+            saucer.castShadow = true;
+            saucer.userData = { type: 'ufo_wreckage', health: 50, id };
+            createObject(id, saucer);
+
+            const ufoLight = new THREE.PointLight(0x00ff00, 3, 40, 2);
+            ufoLight.position.set(x, 5, z);
+            scene.add(ufoLight);
+            animatedItems.push(ufoLight); // Make it flicker
+
+            createNpc('alien', index * 2, [], { x: x + 15, z: z });
+            createNpc('alien', index * 2 + 1, [], { x: x - 15, z: z });
+        }
+        
+        function createMeteorCrater(x, z) {
+            const craterGeo = new THREE.CircleGeometry(15, 32);
+            const craterMat = new THREE.MeshLambertMaterial({ color: 0x3D2B1F }); // Burnt ground color
+            const crater = new THREE.Mesh(craterGeo, craterMat);
+            crater.position.set(x, 0.1, z); // Slightly above ground
+            crater.rotation.x = -Math.PI / 2;
+            scene.add(crater); // Add crater visual
+
+            const id = `meteorite_core_${Date.now()}`;
+            const coreMat = new THREE.MeshStandardMaterial({ color: 0x2C2F33, roughness: 0.8, emissive: 0xff4500, emissiveIntensity: 0.5 });
+            const core = new THREE.Mesh(new THREE.IcosahedronGeometry(2, 0), coreMat);
+            core.position.set(x, 1, z);
+            core.castShadow = true;
+            core.userData = { type: 'meteorite_core', health: 30, id };
+            createObject(id, core);
+            animatedItems.push(core);
+        }
+
+        function createNpc(type, index, treePositions = [], fixedPos = null) {
+            let npcMesh;
+            const id = `${type}_${index}`;
+            const x = fixedPos ? fixedPos.x : seededRandom() * 700 - 350;
+            const z = fixedPos ? fixedPos.z : seededRandom() * 700 - 350;
+            let aiData = {
+                type: type, state: 'wandering', attackCooldown: 0,
+                wanderTarget: new THREE.Vector3(x + (seededRandom() * 50 - 25), 0, z + (seededRandom() * 50 - 25)),
+                health: 1 // Default health
+            };
+
+            switch (type) {
+                case 'rabbit':
+                    npcMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.4, 4, 8), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+                    npcMesh.position.set(x, 0.5, z); aiData.health = 3; break;
+                case 'deer':
+                    npcMesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.5, 2.5), new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+                    npcMesh.position.set(x, 1, z); aiData.health = 8; aiData.attackDamage = 4; break;
+                case 'wolf':
+                    npcMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1.5, 4, 8), new THREE.MeshLambertMaterial({ color: 0x808080 }));
+                    npcMesh.position.set(x, 0.75, z); aiData.health = 8; aiData.attackDamage = 5; break;
+                case 'alphawolf':
+                    npcMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.7, 2, 4, 8), new THREE.MeshLambertMaterial({ color: 0x36454F }));
+                    npcMesh.position.set(x, 1, z); aiData.health = 15; aiData.attackDamage = 8; break;
+                case 'bear':
+                    npcMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.5, 3.5), new THREE.MeshLambertMaterial({ color: 0x5C4033 }));
+                    npcMesh.position.set(x, 1.25, z); aiData.health = 25; aiData.attackDamage = 12; break;
+                case 'owl':
+                    if (treePositions.length > 0) {
+                        const tree = treePositions[Math.floor(seededRandom() * treePositions.length)];
+                        npcMesh = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshLambertMaterial({ color: 0xD2B48C }));
+                        const owlY = tree.trunkHeight + 2;
+                        npcMesh.position.set(tree.x, owlY, tree.z); aiData.health = 4; aiData.state = 'idle'; aiData.attackDamage = 3; aiData.originalPosition = npcMesh.position.clone(); aiData.attackCooldown = 0;
+                    } else { return; } // Can't spawn owl without trees
+                    break;
+                case 'cultist':
+                     npcMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.8, 2.5, 4, 8), new THREE.MeshLambertMaterial({ color: 0x6A0DAD }));
+                     npcMesh.position.set(x, 1.25, z);
+                     aiData.health = 10; aiData.attackDamage = 6; aiData.state = 'guarding'; aiData.guardPoint = new THREE.Vector3(x, 1.25, z); break;
+                case 'alien':
+                    npcMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.7, 2.8, 4, 8), new THREE.MeshLambertMaterial({ color: 0x90EE90 }));
+                    npcMesh.position.set(x, 1.4, z);
+                    aiData.health = 12; aiData.attackDamage = 7; aiData.state = 'guarding'; aiData.guardPoint = new THREE.Vector3(x, 1.4, z); break;
+            }
+
+            if (npcMesh) {
+                npcMesh.castShadow = true;
+                npcMesh.userData = { type, health: aiData.health, id };
+                aiData.mesh = npcMesh;
+                // Add NPC mesh directly to interactable objects for raycasting
+                interactableObjects.push(npcMesh);
+                worldObjects.set(id, { main: npcMesh, secondary: null }); // Track in world objects too
+                scene.add(npcMesh);
+                npcs.push(aiData);
+            }
+        }
+        
+        function createCultistGem(x, y, z) {
+            const id = `cultist_gem_${Date.now()}`;
+            const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.7), new THREE.MeshPhongMaterial({ color: 0x9400D3, emissive: 0x8A2BE2, shininess: 100 }));
+            gem.position.set(x, y > 0.5 ? y : 0.7, z); // Ensure gem doesn't spawn underground
+            gem.userData = { type: 'cultist_gem', health: 1, id };
+            createObject(id, gem); // Will not be added to interactables list based on createObject logic
+            animatedItems.push(gem);
+        }
+
+        function createFood(x, y, z, amount = 1) {
+            const id = `food_${Date.now()}`;
+            const foodMesh = new THREE.Mesh(new THREE.SphereGeometry(0.3 * Math.cbrt(amount)), new THREE.MeshLambertMaterial({color: 0xDC143C}));
+            foodMesh.position.set(x, 0.5, z); // Place consistently on ground
+            foodMesh.userData = { type: 'food', health: 1, id, amount};
+            createObject(id, foodMesh); // Will not be added to interactables list
+        }
+
+        function createWorkbench(position, id = null) {
+            id = id || `workbench_${Date.now()}`;
+            const group = new THREE.Group();
+            const tableMat = new THREE.MeshLambertMaterial({color: 0x8B4513}); // Brown
+            const tableTop = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 3), tableMat);
+            tableTop.position.y = 2.25;
+            const legGeo = new THREE.BoxGeometry(0.5, 2, 0.5);
+            const leg1 = new THREE.Mesh(legGeo, tableMat); leg1.position.set(-1.5, 1, -1);
+            const leg2 = new THREE.Mesh(legGeo, tableMat); leg2.position.set(1.5, 1, -1);
+            const leg3 = new THREE.Mesh(legGeo, tableMat); leg3.position.set(-1.5, 1, 1);
+            const leg4 = new THREE.Mesh(legGeo, tableMat); leg4.position.set(1.5, 1, 1);
+            group.add(tableTop, leg1, leg2, leg3, leg4);
+            group.position.copy(position);
+            group.castShadow = true;
+            group.userData = {type: 'workbench', health: 15, id };
+            createObject(id, group); // Add to interactables via createObject
+            return group;
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function updateNpcs(delta) {
+            const playerPos = controls.getObject().position;
+            const isNight = Math.sin(gameState.timeOfDay * Math.PI * 2) < -0.1;
+
+            npcs.forEach(npc => {
+                 if (!npc.mesh || !npc.mesh.parent) return; // Skip if mesh removed
+
+                const npcPos = npc.mesh.position;
+                const distanceToPlayer = playerPos.distanceTo(npcPos);
+                npc.attackCooldown -= delta;
+
+                switch (npc.type) {
+                    case 'rabbit':
+                        if (distanceToPlayer < 20) npc.state = 'fleeing';
+                        else if (npc.state === 'fleeing' && distanceToPlayer > 40) npc.state = 'wandering';
+                        if(npc.state === 'fleeing') {
+                            const fleeDir = new THREE.Vector3().subVectors(npcPos, playerPos).normalize();
+                            npcPos.add(fleeDir.multiplyScalar(delta * 5.0));
+                        }
+                        break;
+                    case 'deer': case 'wolf': case 'alphawolf': case 'bear': case 'cultist': case 'alien':
+                         const detectionRange = npc.type === 'cultist' || npc.type === 'alien' ? 40 : 30;
+                         const escapeRange = npc.type === 'cultist' || npc.type === 'alien' ? 60 : 50;
+                         const attackRange = npc.type === 'cultist' || npc.type === 'alien' ? 4 : 3.5;
+
+                         if (npc.state !== 'chasing' && distanceToPlayer < detectionRange) npc.state = 'chasing';
+                         else if (npc.state === 'chasing' && distanceToPlayer > escapeRange) {
+                              npc.state = (npc.type === 'cultist' || npc.type === 'alien') ? 'returning' : 'wandering';
+                         }
+
+
+                         if(npc.state === 'chasing') {
+                             const chaseDir = new THREE.Vector3().subVectors(playerPos, npcPos).normalize();
+                             const speedMap = { deer: 3.8, wolf: 3.5, alphawolf: 4.0, bear: 3.0, cultist: 3.2, alien: 4.5 };
+                             const speed = speedMap[npc.type] || 3.0;
+                             npcPos.add(chaseDir.multiplyScalar(delta * speed));
+                             npc.mesh.lookAt(playerPos);
+
+                             if(distanceToPlayer < attackRange && npc.attackCooldown <= 0) {
+                                 gameState.health -= npc.attackDamage;
+                                 npc.attackCooldown = 2.0; // Standard attack cooldown
+                                 if (gameState.health < 0) gameState.health = 0; // Prevent negative health
+                             }
+                         } else if (npc.state === 'returning') {
+                            const returnDir = new THREE.Vector3().subVectors(npc.guardPoint, npcPos).normalize();
+                            npcPos.add(returnDir.multiplyScalar(delta * 4.0));
+                             if(npcPos.distanceTo(npc.guardPoint) < 1) {
+                                 npc.state = 'guarding'; // Or 'wandering' if they don't guard
+                             }
+                         } else if (npc.state === 'guarding') {
+                             // Stay near guard point, maybe small wander radius
+                         }
+                        break;
+                    case 'owl':
+                         if(!isNight) { npc.state = 'idle'; npcPos.copy(npc.originalPosition); break; } // Owls are inactive during day
+
+                        if(npc.state === 'idle' && distanceToPlayer < 25 && npc.attackCooldown <= 0) {
+                            npc.state = 'attacking';
+                        }
+                        if(npc.state === 'attacking') {
+                            const swoopTarget = playerPos.clone().setY(npcPos.y - 5); // Swoop slightly below owl's height
+                            const swoopDir = new THREE.Vector3().subVectors(swoopTarget, npcPos).normalize();
+                            npcPos.add(swoopDir.multiplyScalar(delta * 15.0));
+                             if(distanceToPlayer < 2.5) { // Check distance to actual player pos for hit
+                                 gameState.health -= npc.attackDamage;
+                                 npc.state = 'returning';
+                                 npc.attackCooldown = 5.0;
+                                 if (gameState.health < 0) gameState.health = 0;
+                             }
+                             // If swoop goes too far without hit, return
+                             if(npcPos.y < 1) npc.state = 'returning';
+                        }
+                        if(npc.state === 'returning') {
+                            const returnDir = new THREE.Vector3().subVectors(npc.originalPosition, npcPos).normalize();
+                            npcPos.add(returnDir.multiplyScalar(delta * 10.0));
+                             if(npcPos.distanceTo(npc.originalPosition) < 1) {
+                                 npcPos.copy(npc.originalPosition);
+                                 npc.state = 'idle';
+                             }
+                        }
+                        break;
+                }
+                
+                if (npc.state === 'wandering') {
+                    if (npcPos.distanceTo(npc.wanderTarget) < 2) {
+                        npc.wanderTarget.set(npcPos.x + (Math.random() * 60 - 30), npcPos.y, npcPos.z + (Math.random() * 60 - 30)); // Keep Y the same
+                    } else {
+                        const moveDir = new THREE.Vector3().subVectors(npc.wanderTarget, npcPos).normalize();
+                        npcPos.add(moveDir.multiplyScalar(delta * 2.0));
+                        npc.mesh.lookAt(npc.wanderTarget.clone().setY(npcPos.y)); // Look at target horizontally
+                    }
+                }
+
+                 // Adjust Y position, except for owl
+                 if (npc.type !== 'owl') {
+                    const yMap = { rabbit: 0.5, wolf: 0.75, alphawolf: 1, bear: 1.25, deer: 1, cultist: 1.25, alien: 1.4 };
+                    npcPos.y = yMap[npc.type] || 1;
+                 }
+            });
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = performance.now();
+            if(!prevTime) prevTime = time;
+            const delta = (time - prevTime) / 1000;
+
+            if (gameState.inPlacementMode) updatePlacementGhost();
+
+            animatedItems.forEach(item => { 
+                if (!item.parent) return; // Skip removed items
+                if(item.isPointLight) item.intensity = 2 + Math.sin(time * 0.005) * 1.5;
+                else if (item.userData.type === 'meteorite_core') item.material.emissiveIntensity = 0.5 + Math.sin(time * 0.002) * 0.4;
+                else item.rotation.y += delta * 0.5; 
+            });
+
+            updateGameState(delta);
+            updatePlayerMovement(delta);
+            updateRemotePlayers();
+            updateNpcs(delta);
+            updateSpecialEvents(delta);
+            updateInteractionPrompt();
+
+            if (userId && time > lastPositionUpdateTime + 100) { // Check if userId exists
+                updatePlayerPositionOnFirestore();
+                lastPositionUpdateTime = time;
+            }
+            prevTime = time;
+            renderer.render(scene, camera);
+        }
+        
+        function updatePlayerMovement(delta) {
+             if (controls.isLocked) {
+                velocity.x -= velocity.x * 10 * delta; velocity.z -= velocity.z * 10 * delta;
+                velocity.y -= 9.8 * 100 * delta;
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+                if (moveForward || moveBackward) velocity.z -= direction.z * 400 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 400 * delta;
+                controls.moveRight(-velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+                controls.getObject().position.y += (velocity.y * delta);
+                if (controls.getObject().position.y < 5) {
+                    velocity.y = 0; controls.getObject().position.y = 5; canJump = true;
+                }
+            }
+        }
+        
+        function updateRemotePlayers() {
+            remotePlayers.forEach(p => {
+                if (!p.mesh || !p.mesh.parent) return; // Skip if mesh removed
+                if (p.data && p.data.position && p.data.quaternion) {
+                    p.mesh.position.lerp(new THREE.Vector3(p.data.position.x, p.data.position.y, p.data.position.z), 0.2);
+                    // Ensure quaternion data is plain numbers before creating THREE.Quaternion
+                    const qData = p.data.quaternion;
+                    if (typeof qData._x === 'number' && typeof qData._y === 'number' && typeof qData._z === 'number' && typeof qData._w === 'number') {
+                         const q = new THREE.Quaternion(qData._x, qData._y, qData._z, qData._w);
+                         p.mesh.quaternion.slerp(q, 0.2);
+                    }
+                }
+            });
+        }
+        
+        async function updatePlayerPositionOnFirestore() {
+            if (userId && controls.isLocked) {
+                const ref = doc(playersCollection, userId);
+                const pos = controls.getObject().position;
+                const quat = camera.quaternion;
+                const plainQuat = { _x: quat.x, _y: quat.y, _z: quat.z, _w: quat.w };
+                try {
+                    await setDoc(ref, { position: { x: pos.x, y: pos.y, z: pos.z }, quaternion: plainQuat });
+                } catch (error) {
+                    // Avoid spamming console for minor network issues
+                    // console.error("Error updating player position:", error);
+                }
+            }
+        }
+        
+        function updateGameState(delta) {
+             const oldTimeOfDay = gameState.timeOfDay;
+             gameState.timeOfDay += delta / gameState.dayDuration;
+             
+             const isNightStart = oldTimeOfDay < 0.5 && gameState.timeOfDay >= 0.5;
+             
+             if(isNightStart) {
+                gameState.meteorStrikeToday = false; // Reset meteor flag
+                if(Math.random() < 0.15 && !gameState.meteorStrikeToday) {
+                    triggerMeteorStrike();
+                    gameState.meteorStrikeToday = true;
+                }
+             }
+
+             if (gameState.timeOfDay >= 1) { 
+                gameState.timeOfDay = 0; 
+                gameState.day++; 
+                gameState.meteorStrikeToday = false; // Reset on new day
+             }
+             
+             // --- Sun/Light Logic ---
+             const sunAngle = gameState.timeOfDay * Math.PI * 2;
+             const dirLight = scene.userData.dirLight, ambientLight = scene.userData.ambientLight, cultistLight = scene.userData.cultistLight;
+             const isNight = Math.sin(sunAngle) < -0.1;
+
+             if(dirLight && ambientLight) { // Check if lights exist
+                 dirLight.position.x = 200 * Math.cos(sunAngle); dirLight.position.y = 200 * Math.sin(sunAngle);
+                 if (isNight) {
+                    dirLight.intensity = 0.05; ambientLight.intensity = 0.1;
+                    scene.background.setHex(0x000033); scene.fog.color.setHex(0x000033);
+                    if(cultistLight) cultistLight.intensity = 2.5;
+                 } else { 
+                    const intensity = Math.max(0.1, Math.sin(sunAngle));
+                    dirLight.intensity = 1.5 * intensity; ambientLight.intensity = 0.5 * intensity + 0.2;
+                    scene.background.lerpColors(new THREE.Color(0x000033), new THREE.Color(0x87ceeb), intensity);
+                    scene.fog.color.lerpColors(new THREE.Color(0x000033), new THREE.Color(0x87ceeb), intensity);
+                    if(cultistLight) cultistLight.intensity = 0;
+                 }
+             }
+             
+             // --- Hunger/Health Logic ---
+             const hungerDecayRate = (playerClass === '採集者') ? 0.35 : 0.5;
+             gameState.hunger -= delta * hungerDecayRate;
+             if (gameState.hunger <= 0) { gameState.hunger = 0; gameState.health -= delta * 1; }
+             if (gameState.health < 0) gameState.health = 0; // Prevent negative health
+
+             if (gameState.health <= 0 && controls.isLocked) { // Only trigger death screen once
+                 controls.unlock();
+                 blocker.style.display = 'flex';
+                 instructions.style.display = 'block'; // Make sure instructions are visible
+                 instructions.innerHTML = `<h1>遊戲結束</h1><p>你在第 ${gameState.day} 天倒下了。</p><p class="mt-4 text-xl">點擊以重新開始</p>`;
+                 instructions.onclick = () => window.location.reload();
+             }
+             if (gameState.day > 99 && controls.isLocked) { // Only trigger win screen once
+                controls.unlock();
+                blocker.style.display = 'flex';
+                instructions.style.display = 'block';
+                instructions.innerHTML = `<h1>恭喜你！</h1><p>你成功存活了99夜！</p><p class="mt-4 text-xl">點擊以重新開始</p>`;
+                 instructions.onclick = () => window.location.reload();
+             }
+             updateUI();
+        }
+
+        function triggerMeteorStrike() {
+            showLootNotification("天空中有東西正在墜落...", 'warning');
+            const impactX = (seededRandom() * 800 - 400);
+            const impactZ = (seededRandom() * 800 - 400);
+            const startY = 300;
+            const startX = impactX + (Math.random() - 0.5) * 200;
+            const startZ = impactZ + (Math.random() - 0.5) * 200;
+
+
+            const meteorGeo = new THREE.SphereGeometry(3);
+            const meteorMat = new THREE.MeshBasicMaterial({ color: 0xffa500 });
+            meteorMat.emissive = new THREE.Color(0xff4500); meteorMat.emissiveIntensity = 2;
+
+            const meteor = new THREE.Mesh(meteorGeo, meteorMat);
+            meteor.position.set(startX, startY, startZ);
+            scene.add(meteor);
+
+            specialEvents.push({
+                type: 'meteor', mesh: meteor,
+                target: new THREE.Vector3(impactX, 0, impactZ),
+                startTime: performance.now()
+            });
+        }
+        
+        function updateSpecialEvents(delta) {
+             const now = performance.now();
+            for (let i = specialEvents.length - 1; i >= 0; i--) {
+                const event = specialEvents[i];
+                if (event.type === 'meteor') {
+                    if (!event.mesh || !event.mesh.parent) { // Check if mesh exists
+                         specialEvents.splice(i, 1); continue;
+                     }
+                    const meteor = event.mesh;
+                    const target = event.target;
+                    const travelTime = 1.5; // Seconds to impact
+                    const elapsedTime = (now - event.startTime) / 1000;
+                    const progress = Math.min(elapsedTime / travelTime, 1);
+
+                    // Lerp position using original start position stored implicitly
+                    meteor.position.lerpVectors(new THREE.Vector3(meteor.position.x, 300, meteor.position.z), target, progress);
+
+                    if (progress >= 1) {
+                        const impactLight = new THREE.PointLight(0xffaa55, 10, 50, 3);
+                        impactLight.position.copy(target).setY(5);
+                        scene.add(impactLight);
+                        setTimeout(() => scene.remove(impactLight), 200);
+
+                        scene.remove(meteor);
+                        specialEvents.splice(i, 1);
+                        createMeteorCrater(target.x, target.z);
+                        
+                        const playerPos = controls.getObject().position;
+                        if(playerPos.distanceTo(target) < 20) {
+                            gameState.health -= 30;
+                            if (gameState.health < 0) gameState.health = 0;
+                            showLootNotification("你被衝擊波擊中了！", 'warning');
+                        }
+                    }
+                }
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('day-counter').innerText = `第 ${gameState.day} 天`;
+            document.getElementById('health-bar').style.width = Math.max(0, gameState.health) + '%';
+            document.getElementById('health-bar').innerText = Math.round(Math.max(0, gameState.health)) + '%';
+            document.getElementById('hunger-bar').style.width = Math.max(0, gameState.hunger) + '%';
+            document.getElementById('hunger-bar').innerText = Math.round(Math.max(0, gameState.hunger)) + '%';
+
+            // Update resource counts and max capacities
+            document.getElementById('wood-count').innerText = gameState.resources.wood;
+            document.getElementById('max-wood').innerText = gameState.maxResources.wood;
+            document.getElementById('stone-count').innerText = gameState.resources.stone;
+            document.getElementById('max-stone').innerText = gameState.maxResources.stone;
+            document.getElementById('food-count').innerText = gameState.resources.food;
+            document.getElementById('max-food').innerText = gameState.maxResources.food;
+            document.getElementById('diamond-count').innerText = gameState.resources.diamonds;
+            document.getElementById('max-diamond').innerText = gameState.maxResources.diamonds;
+            document.getElementById('cultist-gem-count').innerText = gameState.resources.cultist_gems;
+            document.getElementById('max-cultist-gem').innerText = gameState.maxResources.cultist_gems;
+            document.getElementById('alien-alloy-count').innerText = gameState.resources.alien_alloys;
+             document.getElementById('max-alien-alloy').innerText = gameState.maxResources.alien_alloys;
+            document.getElementById('meteorite-fragment-count').innerText = gameState.resources.meteorite_fragments;
+            document.getElementById('max-meteorite-fragment').innerText = gameState.maxResources.meteorite_fragments;
+
+            document.getElementById('equipped-tool').textContent = TOOLS[gameState.equippedTool].name;
+            document.getElementById('equipped-bag').textContent = BAGS[gameState.equippedBag].name;
+        }
+        
+        function updateInteractionPrompt() {
+             if (!controls.isLocked) {
+                 document.getElementById('interaction-prompt').style.display = 'none';
+                 return;
+             }
+            raycaster.setFromCamera({x:0, y:0}, camera);
+            // Include NPCs' meshes and collectables in raycasting targets now
+            const targets = [...interactableObjects, ...npcs.map(npc => npc.mesh), ...animatedItems.filter(item => item.userData.type === 'cultist_gem' || item.userData.type === 'diamond')];
+             // Also check for dropped food items separately if needed by distance later
+            const intersects = raycaster.intersectObjects(targets, true);
+            const prompt = document.getElementById('interaction-prompt');
+
+            let hitObject = null;
+            let hitDistance = Infinity;
+
+            if (intersects.length > 0) {
+                 // Find the closest valid interactable object within 10 units
+                for(let i = 0; i < intersects.length; i++) {
+                    if (intersects[i].distance > 10) continue;
+
+                    let currentObject = intersects[i].object;
+                    while (currentObject.parent && !currentObject.userData.type) {
+                        currentObject = currentObject.parent;
+                    }
+                    if (currentObject.userData.type) {
+                        hitObject = currentObject;
+                        hitDistance = intersects[i].distance;
+                        break;
+                    }
+                }
+            }
+
+            // Separately check for nearby dropped food items (not using raycast)
+            const playerPos = controls.getObject().position;
+            worldObjects.forEach(obj => {
+                if(obj.main.userData.type === 'food' && obj.main.position.distanceTo(playerPos) < 3 && 3 < hitDistance) {
+                    hitObject = obj.main; // Prioritize closer non-food items if raycast hit something
+                    hitDistance = obj.main.position.distanceTo(playerPos);
+                }
+                 if(obj.main.userData.type === 'cultist_gem' && obj.main.position.distanceTo(playerPos) < 3 && 3 < hitDistance) {
+                    hitObject = obj.main;
+                    hitDistance = obj.main.position.distanceTo(playerPos);
+                }
+            });
+
+
+            if (hitObject) {
+                const type = hitObject.userData.type;
+                const chestNames = { wooden: '木製寶箱', iron: '鐵製寶箱', red: '紅色寶箱', gold: '黃金寶箱', diamond: '鑽石寶箱', obsidian: '黑曜石寶箱' };
+                let text = `攻擊 ${type}`;
+
+                if (type === 'wood') text = '砍伐樹木';
+                else if (type === 'stone') text = '開採石頭';
+                else if (type === 'food_bush') text = '採集食物'; // Changed from 'food'
+                else if (type === 'food') text = '拾取食物'; // For dropped food
+                else if (type === 'diamond') text = '拾取鑽石'; // Changed from mining
+                else if (type === 'cultist') text = '攻擊邪教徒';
+                else if (type === 'rabbit') text = '攻擊兔子';
+                else if (type === 'deer') text = '攻擊鹿';
+                else if (type === 'wolf') text = '攻擊狼';
+                else if (type === 'alphawolf') text = '攻擊阿爾法狼';
+                else if (type === 'bear') text = '攻擊熊';
+                else if (type === 'owl') text = '攻擊貓頭鷹';
+                else if (type === 'alien') text = '攻擊外星人';
+                else if (type === 'ufo_wreckage') text = '開採殘骸';
+                else if (type === 'meteorite_core') text = '開採隕石核心';
+                else if (type === 'cultist_gem') text = '拾取邪教寶石';
+                else if (type === 'workbench') text = '使用工作台';
+                else if (type === 'treasure') text = `打開${chestNames[hitObject.userData.chestType] || '寶箱'}`;
+                
+                prompt.textContent = `[點擊] ${text}`;
+                prompt.style.display = 'block';
+            } else {
+                prompt.style.display = 'none';
+            }
+        }
+        
+        async function onMouseClick() {
+            if (gameState.inPlacementMode) { placeObject(); return; }
+            if (!controls.isLocked) return;
+
+            raycaster.setFromCamera({x:0, y:0}, camera);
+            const targets = [...interactableObjects, ...npcs.map(npc => npc.mesh), ...animatedItems.filter(item => item.userData.type === 'cultist_gem' || item.userData.type === 'diamond')];
+            const intersects = raycaster.intersectObjects(targets, true);
+            let hitObject = null;
+            let hitDistance = Infinity; // For proximity check
+
+             if (intersects.length > 0 && intersects[0].distance < 10) {
+                 let currentObject = intersects[0].object;
+                 while (currentObject.parent && !currentObject.userData.type) { currentObject = currentObject.parent; }
+                 if (currentObject.userData.type) {
+                      hitObject = currentObject;
+                      hitDistance = intersects[0].distance;
+                 }
+            }
+
+            // Proximity check for collectables (food, gems, diamonds)
+             const playerPos = controls.getObject().position;
+             worldObjects.forEach(obj => {
+                 const objPos = obj.main.position;
+                 const objType = obj.main.userData.type;
+                 if ((objType === 'food' || objType === 'cultist_gem' || objType === 'diamond') && objPos.distanceTo(playerPos) < 3) {
+                     // If closer than raycast hit or no raycast hit, prioritize pickup
+                     if (objPos.distanceTo(playerPos) < hitDistance) {
+                         hitObject = obj.main;
+                         hitDistance = objPos.distanceTo(playerPos);
+                     }
+                 }
+             });
+
+
+            if (hitObject) {
+                const type = hitObject.userData.type;
+                const id = hitObject.userData.id; // Get ID early
+
+                // --- Handle Pickups ---
+                if (type === 'food' || type === 'cultist_gem' || type === 'diamond') {
+                    let resourceName = type;
+                    let amount = hitObject.userData.amount || 1; // Default to 1 if amount not specified (gems, diamonds)
+                    if (resourceName === 'diamond') resourceName = 'diamonds'; // Map to gameState key
+                    else if (resourceName === 'cultist_gem') resourceName = 'cultist_gems';
+
+                    const maxResource = gameState.maxResources[resourceName];
+                    const currentResource = gameState.resources[resourceName];
+
+                    if (currentResource < maxResource) {
+                         const canTake = maxResource - currentResource;
+                         const takeAmount = Math.min(amount, canTake);
+
+                        gameState.resources[resourceName] += takeAmount;
+
+                        // Specific logic for permanent diamonds
+                        if (resourceName === 'diamonds' && userId) {
+                            playerData.diamonds = gameState.resources.diamonds;
+                             try { await updateDoc(doc(playerDataCollection, userId), { diamonds: playerData.diamonds }); } catch(e) { console.error("Diamond sync error:", e); }
+                        }
+
+                        // Destroy the picked up object from the world
+                        if (userId) { await setDoc(doc(destroyedObjectsCollection, id), { destroyedAt: Date.now() }); }
+                        else { /* Handle offline removal */ if (worldObjects.has(id)) { scene.remove(worldObjects.get(id).main); worldObjects.delete(id); const j = animatedItems.findIndex(item => item.userData.id === id); if (j > -1) animatedItems.splice(j, 1); } }
+                    } else {
+                        showLootNotification("背包已滿！", "warning");
+                    }
+                    updateUI();
+                    return; // Stop further processing for pickups
+                }
+
+                // --- Handle Workbench Use ---
+                if (type === 'workbench') {
+                    toggleCraftingMenu(true);
+                    return;
+                }
+
+                // --- Handle Damage/Destruction ---
+                const currentTool = TOOLS[gameState.equippedTool];
+                const damage = currentTool.damage[type] || currentTool.damage['default'] || 1;
+                hitObject.userData.health -= damage;
+
+                if (hitObject.userData.health <= 0) {
+                    let foundDiamond = false;
+                    const pos = hitObject.position.clone();
+
+                    // --- Loot Generation ---
+                    if (type === 'wood') addResource('wood', (playerClass === '樵夫' ? 8 : 5));
+                    else if (type === 'stone') addResource('stone', (playerClass === '礦工' ? 4 : 2));
+                    else if (type === 'food_bush') addResource('food', 1); // Collect from bush
+                    else if (['rabbit', 'deer', 'wolf', 'alphawolf', 'bear', 'owl'].includes(type)) {
+                        const foodYield = { rabbit: 1, deer: 2, wolf: 2, alphawolf: 3, bear: 5, owl: 1 };
+                        createFood(pos.x, pos.y, pos.z, foodYield[type]); // Drop food item
+                    }
+                    else if (type === 'cultist') createCultistGem(pos.x, pos.y, pos.z); // Drop gem item
+                    else if (type === 'alien') addResource('alien_alloys', 1);
+                    else if (type === 'ufo_wreckage') {
+                        addResource('alien_alloys', Math.floor(Math.random() * 6) + 5);
+                        if(Math.random() < 0.05) equipTool('LaserPistol');
+                    }
+                     else if (type === 'meteorite_core') {
+                        addResource('meteorite_fragments', Math.floor(Math.random() * 4) + 2);
+                        addResource('stone', Math.floor(Math.random() * 10) + 5);
+                        if (Math.random() < 0.15) { addResource('diamonds', 1); foundDiamond = true; }
+                    }
+                    else if (type === 'treasure') {
+                        const chestType = hitObject.userData.chestType;
+                        let awardedTool = null; let awardedBag = null;
+                        switch(chestType) {
+                            case 'wooden': addResource('wood', 5); addResource('stone', 2); if (Math.random() < 0.1) awardedBag = 'OldBag'; break;
+                            case 'iron': addResource('wood', 8); addResource('stone', 5); addResource('food', 3); if (Math.random() < 0.2) awardedBag = 'OldBag'; break;
+                            case 'red': addResource('wood', 15); addResource('food', 8); if (Math.random() < 0.2) awardedTool = Math.random() < 0.5 ? 'ExcellentAxe' : 'ToughAxe'; if (Math.random() < 0.1) awardedBag = 'GoodBag'; break;
+                            case 'gold': addResource('stone', 15); if (Math.random() < 0.6) awardedTool = ['ExcellentAxe', 'ToughAxe'][Math.floor(Math.random()*2)]; if (Math.random() < 0.8) { addResource('diamonds', 1); foundDiamond = true; } if (Math.random() < 0.25) awardedBag = 'GoodBag'; break;
+                            case 'diamond': addResource('food', 10); const dA = Math.floor(Math.random() * 2) + 2; addResource('diamonds', dA); foundDiamond = true; if (Math.random() < 0.3) awardedTool = 'WolfToothClub'; if (Math.random() < 0.1) awardedBag = 'GiantBag'; break;
+                            case 'obsidian': addResource('wood', 20); addResource('stone', 15); const obsidA = Math.floor(Math.random() * 3) + 2; addResource('diamonds', obsidA); if(Math.random() < 0.75) addResource('cultist_gems', 1); awardedTool = Math.random() < 0.15 ? 'Chainsaw' : 'WolfToothClub'; if (Math.random() < 0.3) awardedBag = 'GiantBag'; foundDiamond = true; break;
+                        }
+                        if(awardedTool) equipTool(awardedTool);
+                        if(awardedBag) equipBag(awardedBag);
+                    }
+                     // Diamond nodes are now pickups, handled above
+
+                    // --- Permanent Diamond Update ---
+                    if(foundDiamond && userId) {
+                        playerData.diamonds = gameState.resources.diamonds;
+                         try { await updateDoc(doc(playerDataCollection, userId), { diamonds: playerData.diamonds }); } catch (e) { console.error("Diamond sync error:", e); }
+                    }
+
+                    // --- Destroy Object ---
+                    if (userId) { await setDoc(doc(destroyedObjectsCollection, id), { destroyedAt: Date.now() }); }
+                    else { /* Handle offline removal */ if (worldObjects.has(id)) { scene.remove(worldObjects.get(id).main); worldObjects.delete(id); const k = npcs.findIndex(n=>n.mesh?.userData?.id === id); if(k > -1) npcs.splice(k, 1); const i = interactableObjects.findIndex(o=>o.userData.id === id); if(i > -1) interactableObjects.splice(i, 1);} }
+                }
+                updateUI();
+            }
+        }
+
+        // Helper function to add resources respecting capacity
+        function addResource(resourceName, amount) {
+            const max = gameState.maxResources[resourceName];
+            const current = gameState.resources[resourceName];
+            const canAdd = max - current;
+            const actualAdd = Math.min(amount, canAdd);
+
+            if (actualAdd > 0) {
+                 gameState.resources[resourceName] += actualAdd;
+                 if(amount > actualAdd) showLootNotification(`${resourceName} 背包已滿！`, 'warning');
+            } else {
+                 showLootNotification(`${resourceName} 背包已滿！`, 'warning');
+            }
+             // Diamond update logic is handled specifically in onMouseClick for foundDiamond flag
+        }
+        
+        function equipTool(toolName) {
+             if (TOOLS[toolName]) {
+                gameState.equippedTool = toolName;
+                showLootNotification(`你裝備了 ${TOOLS[toolName].name}！`, 'info');
+                updateUI();
+            }
+        }
+
+        function equipBag(bagName) {
+             if (BAGS[bagName]) {
+                 const oldBagMultiplier = BAGS[gameState.equippedBag]?.capacityMultiplier || 1.0;
+                 const newBagMultiplier = BAGS[bagName].capacityMultiplier;
+
+                 // Only equip if the new bag is better or the same (allowing side-grades if needed later)
+                 if (newBagMultiplier >= oldBagMultiplier) {
+                    gameState.equippedBag = bagName;
+
+                    // Update maxResources based on the new multiplier
+                    for (const resource in BASE_MAX_RESOURCES) {
+                        gameState.maxResources[resource] = Math.floor(BASE_MAX_RESOURCES[resource] * newBagMultiplier);
+                    }
+
+                    showLootNotification(`你裝備了 ${BAGS[bagName].name}！`, 'info');
+                    updateUI(); // Update UI to reflect new max capacities
+                 } else {
+                     showLootNotification("這個背包比較小。", "info");
+                 }
+            }
+        }
+
+
+        function showLootNotification(message, type = 'loot') {
+            const notification = document.getElementById('loot-notification');
+            notification.textContent = message;
+            notification.className = type; // Use class for styling (loot, warning, info)
+            notification.style.opacity = 1;
+            setTimeout(() => {
+                notification.style.opacity = 0;
+            }, 3000); // 3 seconds visible
+        }
+
+        function toggleCraftingMenu(isWorkbench) {
+            const isOpen = craftingMenu.style.display === 'flex';
+            if (isOpen) {
+                craftingMenu.style.display = 'none';
+                 if(!gameState.inPlacementMode) controls.lock(); // Only lock if not placing
+            } else {
+                 if(gameState.inPlacementMode) return; // Don't open crafting while placing
+                controls.unlock();
+                craftingMenu.style.display = 'flex';
+                document.getElementById('crafting-title').textContent = isWorkbench ? '工作台製造' : '基礎製造';
+                populateCraftingMenu(isWorkbench);
+            }
+        }
+
+        function populateCraftingMenu(isWorkbench) {
+            const recipeList = document.getElementById('recipe-list');
+            recipeList.innerHTML = ''; // Clear previous list
+            for (const id in RECIPES) {
+                const recipe = RECIPES[id];
+                if (recipe.requiresWorkbench === isWorkbench) {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'recipe-item';
+                    
+                    let costHtml = '';
+                    let canCraft = true;
+                    for (const resource in recipe.cost) {
+                        const required = recipe.cost[resource];
+                        const possessed = gameState.resources[resource] || 0;
+                        // Use correct resource names for display if needed
+                        const displayResource = resource.replace('_', ' '); // Simple formatting
+                        costHtml += `<span class="${possessed < required ? 'text-red-400' : 'text-gray-400'}">${displayResource}: ${possessed}/${required}</span><br>`; // Line break for readability
+                        if (possessed < required) canCraft = false;
+                    }
+
+                    itemDiv.innerHTML = `
+                        <h3>${recipe.name}</h3>
+                        <div class="cost">${costHtml}</div>
+                        <button data-recipe-id="${id}" class="craft-button" ${canCraft ? '' : 'disabled'}>製造</button>
+                    `;
+                    recipeList.appendChild(itemDiv);
+                }
+            }
+            // Add event listeners after populating
+            recipeList.querySelectorAll('.craft-button').forEach(button => {
+                button.addEventListener('click', (e) => craftItem(e.target.dataset.recipeId));
+            });
+        }
+
+        function craftItem(id) {
+            const recipe = RECIPES[id];
+            if (!recipe) return;
+
+            // Double check resources just before crafting
+            for (const resource in recipe.cost) {
+                if ((gameState.resources[resource] || 0) < recipe.cost[resource]) {
+                    showLootNotification("資源不足！", "warning");
+                    return; // Stop crafting
+                }
+            }
+
+            // Consume resources
+            for (const resource in recipe.cost) {
+                gameState.resources[resource] -= recipe.cost[resource];
+            }
+
+            // Grant result
+            const result = recipe.result;
+            if(result.type === 'tool') {
+                equipTool(result.item);
+                // Keep menu open after crafting tool, update button states
+                 populateCraftingMenu(document.getElementById('crafting-title').textContent.includes('工作台'));
+            } else if (result.type === 'placement') {
+                gameState.inPlacementMode = result.item;
+                toggleCraftingMenu(false); // Close menu to enter placement mode
+                createPlacementGhost(result.item);
+                 showLootNotification("進入放置模式。 [Q] 取消", "info"); // Placement info
+            }
+            
+            updateUI();
+        }
+
+        function createPlacementGhost(itemType) {
+            if (placementGhost) scene.remove(placementGhost); // Remove old ghost if any
+            if (itemType === 'workbench') {
+                const ghostMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.5, depthWrite: false }); // Green, semi-transparent
+                const group = new THREE.Group();
+                const tableTop = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 3), ghostMat);
+                tableTop.position.y = 2.25;
+                const legGeo = new THREE.BoxGeometry(0.5, 2, 0.5);
+                const leg1 = new THREE.Mesh(legGeo, ghostMat); leg1.position.set(-1.5, 1, -1);
+                const leg2 = new THREE.Mesh(legGeo, ghostMat); leg2.position.set(1.5, 1, -1);
+                const leg3 = new THREE.Mesh(legGeo, ghostMat); leg3.position.set(-1.5, 1, 1);
+                const leg4 = new THREE.Mesh(legGeo, ghostMat); leg4.position.set(1.5, 1, 1);
+                group.add(tableTop, leg1, leg2, leg3, leg4);
+                placementGhost = group;
+            }
+             // Add other placeable items here
+            if (placementGhost) {
+                placementGhost.renderOrder = 999; // Try to render on top
+                scene.add(placementGhost);
+                updatePlacementGhost(); // Position it immediately
+            }
+        }
+
+        function updatePlacementGhost() {
+            if (!placementGhost) return;
+            const forward = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            // Raycast down from slightly in front of the camera to find ground position
+            const rayStart = controls.getObject().position.clone().add(forward.clone().multiplyScalar(6)); // Start 6 units in front
+            rayStart.y += 10; // Start high up
+             const downRay = new THREE.Raycaster(rayStart, new THREE.Vector3(0, -1, 0));
+             const groundIntersects = downRay.intersectObjects(scene.children.filter(o => o.geometry instanceof THREE.PlaneGeometry), false); // Target only the ground plane, not recursive
+
+
+             let targetY = 0; // Default to 0 if no ground found
+             if (groundIntersects.length > 0) {
+                 targetY = groundIntersects[0].point.y; // Get Y coordinate of the ground hit
+             }
+
+            const ghostPos = controls.getObject().position.clone().add(forward.multiplyScalar(8)); // Place 8 units in front horizontally
+            ghostPos.y = targetY; // Set Y to ground level (or 0)
+            
+            placementGhost.position.copy(ghostPos);
+            // Maybe add rotation logic here later if needed
+        }
+
+        async function placeObject() {
+            if (!gameState.inPlacementMode || !placementGhost || !userId) return; // Need to be online to place
+
+            const position = placementGhost.position.clone();
+            const itemType = gameState.inPlacementMode;
+            
+            try {
+                // Add the object to Firestore
+                const docRef = await addDoc(placedObjectsCollection, {
+                    type: itemType,
+                    position: {x: position.x, y: position.y, z: position.z}
+                    // Add rotation if needed: quaternion: {x: placementGhost.quaternion.x, ...}
+                });
+                console.log("Placed object with ID: ", docRef.id);
+                 // The Firestore listener will handle creating the actual object in the scene for all players
+            } catch (error) {
+                console.error("Error placing object:", error);
+                 showLootNotification("放置失敗！", "warning");
+            } finally {
+                cancelPlacement(); // Exit placement mode regardless of success/failure
+            }
+        }
+
+        function cancelPlacement() {
+            if (placementGhost) scene.remove(placementGhost);
+            placementGhost = null;
+            gameState.inPlacementMode = null;
+            // Decide if resources should be returned on cancel - currently they are not.
+            controls.lock(); // Re-lock controls
+        }
+        
+        main();
+    </script>
+</body>
+</html>
+
